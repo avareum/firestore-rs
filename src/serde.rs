@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 
 use chrono::prelude::*;
+#[cfg(not(feature = "timestamp"))]
 use chrono::serde::ts_seconds;
 use gcloud_sdk::google::firestore::v1::*;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "timestamp")]
+use {chrono::serde::ts_milliseconds, prost_types::Timestamp};
 
 use crate::errors::*;
 use crate::FirestoreQueryValue;
@@ -21,7 +24,11 @@ fn firestore_value_to_serde_value(v: &Value) -> serde_json::Value {
                 NaiveDateTime::from_timestamp(ts.seconds, ts.nanos as u32),
                 Utc,
             );
+            #[cfg(feature = "timestamp")]
+            #[derive(Serialize)]
+            struct DtWrapper(#[serde(with = "ts_milliseconds")] DateTime<Utc>);
 
+            #[cfg(not(feature = "timestamp"))]
             #[derive(Serialize)]
             struct DtWrapper(#[serde(with = "ts_seconds")] DateTime<Utc>);
 
@@ -49,7 +56,20 @@ fn firestore_value_to_serde_value(v: &Value) -> serde_json::Value {
 
 fn serde_value_to_firestore_value(v: &serde_json::Value) -> Value {
     let value_type = match v {
-        serde_json::Value::String(str) => Some(value::ValueType::StringValue(str.clone())),
+        serde_json::Value::String(str) => {
+            #[cfg(feature = "timestamp")]
+            #[allow(clippy::cast_possible_wrap)]
+            match DateTime::parse_from_rfc3339(str.as_str()) {
+                Ok(dt) => Some(value::ValueType::TimestampValue(Timestamp {
+                    seconds: dt.timestamp(),
+                    nanos: dt.nanosecond() as i32,
+                })),
+                Err(_) => Some(value::ValueType::StringValue(str.clone())),
+            }
+
+            #[cfg(not(feature = "timestamp"))]
+            Some(value::ValueType::StringValue(str.clone()))
+        }
         serde_json::Value::Number(numb) if numb.is_i64() => {
             Some(value::ValueType::IntegerValue(numb.as_i64().unwrap()))
         }
