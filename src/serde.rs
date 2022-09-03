@@ -6,7 +6,7 @@ use chrono::serde::ts_seconds;
 use gcloud_sdk::google::firestore::v1::*;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "timestamp")]
-use {chrono::serde::ts_milliseconds, prost_types::Timestamp};
+use {chrono::SecondsFormat, prost_types::Timestamp};
 
 use crate::errors::*;
 use crate::FirestoreQueryValue;
@@ -19,16 +19,22 @@ fn firestore_value_to_serde_value(v: &Value) -> serde_json::Value {
             serde_json::Value::Number(serde_json::Number::from_f64(*dv).unwrap())
         }
         Some(value::ValueType::BooleanValue(bv)) => serde_json::Value::Bool(*bv),
+        #[cfg(feature = "timestamp")]
         Some(value::ValueType::TimestampValue(ts)) => {
             let dt = DateTime::<Utc>::from_utc(
                 NaiveDateTime::from_timestamp(ts.seconds, ts.nanos as u32),
                 Utc,
             );
             #[cfg(feature = "timestamp")]
-            #[derive(Serialize)]
-            struct DtWrapper(#[serde(with = "ts_milliseconds")] DateTime<Utc>);
+            serde_json::Value::String(dt.to_rfc3339_opts(SecondsFormat::Micros, true))
+        }
+        #[cfg(not(feature = "timestamp"))]
+        Some(value::ValueType::TimestampValue(ts)) => {
+            let dt = DateTime::<Utc>::from_utc(
+                NaiveDateTime::from_timestamp(ts.seconds, ts.nanos as u32),
+                Utc,
+            );
 
-            #[cfg(not(feature = "timestamp"))]
             #[derive(Serialize)]
             struct DtWrapper(#[serde(with = "ts_seconds")] DateTime<Utc>);
 
