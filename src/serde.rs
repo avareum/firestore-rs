@@ -25,7 +25,7 @@ fn firestore_value_to_serde_value(v: &Value) -> serde_json::Value {
                 NaiveDateTime::from_timestamp(ts.seconds, ts.nanos as u32),
                 Utc,
             );
-            #[cfg(feature = "timestamp")]
+
             serde_json::Value::String(dt.to_rfc3339_opts(SecondsFormat::Micros, true))
         }
         #[cfg(not(feature = "timestamp"))]
