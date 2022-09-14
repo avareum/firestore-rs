@@ -6,14 +6,43 @@ pub fn config_env_var(name: &str) -> Result<String, String> {
     std::env::var(name).map_err(|e| format!("{}: {}", name, e))
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Test1(pub u8);
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Test1i(pub Test1);
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Test2 {
+    some_id: String,
+    some_bool: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TestEnum {
+    TestChoice,
+    TestWithParam(String),
+    TestWithMultipleParams(String, String),
+    TestWithStruct(Test2),
+}
+
 // Example structure to play with
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct MyTestStructure {
     some_id: String,
     some_string: String,
-    one_more_string: String,
     some_num: u64,
+    #[serde(with = "firestore::serialize_as_timestamp")]
     created_at: DateTime<Utc>,
+    test1: Test1,
+    test1i: Test1i,
+    test11: Option<Test1>,
+    test2: Option<Test2>,
+    test3: Vec<Test2>,
+    test4: TestEnum,
+    test5: (TestEnum, TestEnum),
+    test6: TestEnum,
+    test7: TestEnum,
 }
 
 #[tokio::main]
@@ -27,14 +56,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Create an instance
     let db = FirestoreDb::new(&config_env_var("PROJECT_ID")?).await?;
 
-    const TEST_COLLECTION_NAME: &'static str = "test";
+    const TEST_COLLECTION_NAME: &'static str = "test-ts1";
 
     let my_struct = MyTestStructure {
         some_id: "test-1".to_string(),
         some_string: "Test".to_string(),
-        one_more_string: "Test2".to_string(),
         some_num: 41,
         created_at: Utc::now(),
+        test1: Test1(1),
+        test1i: Test1i(Test1(1)),
+        test11: Some(Test1(1)),
+        test2: Some(Test2 {
+            some_id: "test-1".to_string(),
+            some_bool: Some(true),
+        }),
+        test3: vec![
+            Test2 {
+                some_id: "test-2".to_string(),
+                some_bool: Some(false),
+            },
+            Test2 {
+                some_id: "test-2".to_string(),
+                some_bool: Some(true),
+            },
+        ],
+        test4: TestEnum::TestChoice,
+        test5: (TestEnum::TestChoice, TestEnum::TestChoice),
+        test6: TestEnum::TestWithMultipleParams("ss".to_string(), "ss".to_string()),
+        test7: TestEnum::TestWithStruct(Test2 {
+            some_id: "test-2".to_string(),
+            some_bool: Some(true),
+        }),
     };
 
     // Remove if it already exist

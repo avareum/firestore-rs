@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use firestore::*;
 use futures_util::stream::BoxStream;
 use serde::{Deserialize, Serialize};
@@ -13,9 +12,6 @@ pub fn config_env_var(name: &str) -> Result<String, String> {
 struct MyTestStructure {
     some_id: String,
     some_string: String,
-    one_more_string: String,
-    some_num: u64,
-    created_at: DateTime<Utc>,
 }
 
 #[tokio::main]
@@ -36,9 +32,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let my_struct = MyTestStructure {
             some_id: format!("test-{}", i),
             some_string: "Test".to_string(),
-            one_more_string: "Test2".to_string(),
-            some_num: 42,
-            created_at: Utc::now(),
         };
 
         // Remove if it already exist
@@ -50,20 +43,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .await?;
     }
 
-    println!("Querying a test collection as a stream");
+    println!("Transaction update/delete on collection");
+
+    let mut transaction = db.begin_transaction().await?;
+
+    transaction.update_object(
+        TEST_COLLECTION_NAME,
+        "test-0",
+        &MyTestStructure {
+            some_id: format!("test-0"),
+            some_string: "UpdatedTest".to_string(),
+        },
+        Some(paths!(MyTestStructure::{
+            some_string
+        })),
+    )?;
+
+    transaction.delete_by_id(TEST_COLLECTION_NAME, "test-5")?;
+
+    transaction.commit().await?;
+
+    println!("Listing objects as a stream with updated test-0 and removed test-5");
     // Query as a stream our data
-    let mut object_stream: BoxStream<MyTestStructure> = db
-        .stream_query_obj(
-            FirestoreQueryParams::new(TEST_COLLECTION_NAME.into()).with_filter(
-                FirestoreQueryFilter::Compare(Some(FirestoreQueryFilterCompare::Equal(
-                    path!(MyTestStructure::some_num),
-                    42.into(),
-                ))),
-            ),
+    let mut objs_stream: BoxStream<MyTestStructure> = db
+        .stream_list_obj(
+            FirestoreListDocParams::new(TEST_COLLECTION_NAME.into()).with_order_by(vec![
+                FirestoreQueryOrder::new(
+                    path!(MyTestStructure::some_id),
+                    FirestoreQueryDirection::Descending,
+                ),
+            ]),
         )
         .await?;
 
-    while let Some(object) = object_stream.next().await {
+    while let Some(object) = objs_stream.next().await {
         println!("Object in stream: {:?}", object);
     }
 

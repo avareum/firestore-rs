@@ -5,6 +5,9 @@
 //! - Support for querying / streaming / listing / listening changes documents from Firestore;
 //! - Full async based on Tokio runtime;
 //! - Macro that helps you use JSON paths as references to your structure fields;
+//! - Implements own Serde serializer to Firestore values;
+//! - Supports for Firestore timestamp with `#[serde(with)]`;
+//! - Transactions support;
 //! - Google client based on [gcloud-sdk library](https://github.com/abdolence/gcloud-sdk-rs)
 //!   that automatically detects GKE environment or application default accounts for local development;
 //!
@@ -96,19 +99,18 @@
 //!
 
 #![allow(clippy::new_without_default)]
+#![forbid(unsafe_code)]
 
 pub mod errors;
-
-mod query;
-pub use query::*;
-
-mod list_doc;
-pub use list_doc::*;
+mod firestore_value;
+pub use firestore_value::*;
 
 mod db;
 pub use db::*;
 
-mod serde;
+mod firestore_serde;
+pub use firestore_serde::*;
+
 mod struct_path_macro;
 use crate::errors::FirestoreError;
 pub use struct_path_macro::*;

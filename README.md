@@ -10,18 +10,20 @@ Library provides a simple API for Google Firestore:
   - Querying/streaming docs/objects;
   - Listing documents/objects (and auto pages scrolling support);
   - Listening changes from Firestore;
+  - Transactions;
 - Full async based on Tokio runtime;
 - Macro that helps you use JSON paths as references to your structure fields;
+- Implements own Serde serializer to Firestore values;
+- Supports for Firestore timestamp with `#[serde(with)]`
 - Google client based on [gcloud-sdk library](https://github.com/abdolence/gcloud-sdk-rs) 
   that automatically detects GKE environment or application default accounts for local development;
 
 ## Quick start
 
-
 Cargo.toml:
 ```toml
 [dependencies]
-firestore = "0.7"
+firestore = "0.10"
 ```
 
 Example code:
@@ -96,12 +98,27 @@ Example code:
     println!("Now in the list: {:?}", objects);
 ```
 
-All examples available at examples directory.
+All examples available at [examples](examples) directory.
 
-To run example use with environment variables:
+To run example use it with environment variables:
 ```
 # PROJECT_ID=<your-google-project-id> cargo run --example simple-crud
 ```
+
+## Timestamps support
+By default, the types such as DateTime<Utc> serializes as a string
+to Firestore (while deserialization works from Timestamps and Strings).
+To change it to support Timestamp natively use `#[serde(with)]`:
+
+```
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct MyTestStructure {
+    #[serde(with = "firestore::serialize_as_timestamp")]
+    created_at: DateTime<Utc>,
+}
+```
+This will change it only for firestore serialization and it still serializes as string
+to JSON (so you can reuse the same model for JSON and Firestore).
 
 ## Licence
 Apache Software License (ASL)

@@ -52,15 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     println!("Querying a test collection as a stream");
     // Query as a stream our data
-    let mut object_stream: BoxStream<MyTestStructure> = db
-        .stream_query_obj(
-            FirestoreQueryParams::new(TEST_COLLECTION_NAME.into()).with_filter(
-                FirestoreQueryFilter::Compare(Some(FirestoreQueryFilterCompare::Equal(
-                    path!(MyTestStructure::some_num),
-                    42.into(),
-                ))),
-            ),
-        )
+    let mut object_stream: BoxStream<(String, Option<MyTestStructure>)> = db
+        .batch_stream_get_objects_by_ids(TEST_COLLECTION_NAME.into(), vec!["test-0", "test-5"])
         .await?;
 
     while let Some(object) = object_stream.next().await {

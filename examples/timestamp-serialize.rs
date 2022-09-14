@@ -10,9 +10,9 @@ pub fn config_env_var(name: &str) -> Result<String, String> {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct MyTestStructure {
     some_id: String,
-    some_string: String,
-    one_more_string: String,
-    some_num: u64,
+    // Using a special attribute to indicate timestamp serialization for Firestore
+    // (for serde_json it will be still the same, usually String serialization, so you can reuse the models)
+    #[serde(with = "firestore::serialize_as_timestamp")]
     created_at: DateTime<Utc>,
 }
 
@@ -27,13 +27,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Create an instance
     let db = FirestoreDb::new(&config_env_var("PROJECT_ID")?).await?;
 
-    const TEST_COLLECTION_NAME: &'static str = "test";
+    const TEST_COLLECTION_NAME: &'static str = "test-ts1";
 
     let my_struct = MyTestStructure {
         some_id: "test-1".to_string(),
-        some_string: "Test".to_string(),
-        one_more_string: "Test2".to_string(),
-        some_num: 41,
         created_at: Utc::now(),
     };
 
@@ -45,25 +42,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     db.create_obj(TEST_COLLECTION_NAME, &my_struct.some_id, &my_struct)
         .await?;
 
-    // Update some field in it
-    let updated_obj = db
-        .update_obj(
-            TEST_COLLECTION_NAME,
-            &my_struct.some_id,
-            &MyTestStructure {
-                some_num: my_struct.some_num + 1,
-                some_string: "updated-value".to_string(),
-                ..my_struct.clone()
-            },
-            Some(paths!(MyTestStructure::{
-                some_num,
-                some_string
-            })),
-        )
-        .await?;
-
-    println!("Updated object: {:?}", updated_obj);
-
     // Get object by id
     let find_it_again: MyTestStructure =
         db.get_obj(TEST_COLLECTION_NAME, &my_struct.some_id).await?;
@@ -74,9 +52,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let objects: Vec<MyTestStructure> = db
         .query_obj(
             FirestoreQueryParams::new(TEST_COLLECTION_NAME.into()).with_filter(
-                FirestoreQueryFilter::Compare(Some(FirestoreQueryFilterCompare::Equal(
-                    path!(MyTestStructure::some_num),
-                    find_it_again.some_num.into(),
+                FirestoreQueryFilter::Compare(Some(FirestoreQueryFilterCompare::LessThanOrEqual(
+                    path!(MyTestStructure::created_at),
+                    firestore::FirestoreTimestamp(Utc::now()).into(), // Using the wrapping type to indicate serialization without attribute
                 ))),
             ),
         )
